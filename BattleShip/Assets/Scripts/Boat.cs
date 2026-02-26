@@ -12,6 +12,7 @@ public class Boat : MonoBehaviour
     private float airDrag;
     private float airAngularDrag;
     public bool isOcean;
+    public float dampeningFactor = 0.1f;
     public Ocean ocean;
     public bool simulateWaterTurbulence;
     public float turbulenceStrenght = 1;
@@ -53,7 +54,7 @@ public class Boat : MonoBehaviour
         time += Time.fixedDeltaTime / 4;
         if(isOcean)
         {
-            //OceanUpdate();
+            OceanUpdate();
         }
     }
 
@@ -65,26 +66,26 @@ public class Boat : MonoBehaviour
             if(difference < 0)
             {
                 Vector3 bouncy = (Vector3.up * floatStrength * Mathf.Abs(difference) * Physics.gravity.magnitude * volume * ocean.density);
-                // 난류 미구현
-                // if (simulateWaterTurbulence)
-                // {
-                //     bouncy += GenerateTurbulence();
-                // }
+                // 난류
+                if (simulateWaterTurbulence)
+                {
+                    bouncy += GenerateTurbulence();
+                }
                 rb.AddForceAtPosition(bouncy, floater.position, ForceMode.Force);
-                //rb.AddForceAtPosition(rb.velocity * (dampeningFactor / floaters.Count) * volume, floater.position, ForceMode.Force);
+                rb.AddForceAtPosition(rb.linearVelocity * (dampeningFactor / floaters.Count) * volume, floater.position, ForceMode.Force);
             }
         }
     }
 
-    // 난류 미구현
-    // public Vector3 GenerateTurbulence()
-    // {
-    //     Vector3 turbulence = new Vector3(Mathf.PerlinNoise(time + randTimeOffset[0], time + randTimeOffset[1]) * 2 - 1,
-    //                                 0,
-    //                                 Mathf.PerlinNoise(time + randTimeOffset[4], time + randTimeOffset[5]) * 2 - 1);
+    // 난류
+    public Vector3 GenerateTurbulence()
+    {
+        Vector3 turbulence = new Vector3(Mathf.PerlinNoise(time + randTimeOffset[0], time + randTimeOffset[1]) * 2 - 1,
+                                    0,
+                                    Mathf.PerlinNoise(time + randTimeOffset[4], time + randTimeOffset[5]) * 2 - 1);
 
-    //         return turbulence * turbulenceStrenght;
-    // }
+            return turbulence * turbulenceStrenght;
+    }
 
     public void EnterOcean(Ocean entered)
     {

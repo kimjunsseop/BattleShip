@@ -12,14 +12,19 @@ public class Boat : MonoBehaviour
     private float airDrag;
     private float airAngularDrag;
     public bool isOcean;
-    public float dampeningFactor = 0.1f;
+    public float dampeningFactor = 0.5f;
     public Ocean ocean;
     public bool simulateWaterTurbulence;
     public float turbulenceStrenght = 1;
     public float[] randTimeOffset = new float[6];
     private float time;
-    public float floatStrength = 2;
+    public float floatStrength = 0.5f;
     public List<Transform> floaters = new List<Transform>();
+    public MeshRenderer waterRenderer;
+    private Material waterMaterial;
+    private float cachedSpeed;
+    private Vector2 cachedScale;
+    private float waterBaseY;
     void Start()
     {
         coll = GetComponent<Collider>();
@@ -38,6 +43,13 @@ public class Boat : MonoBehaviour
         if(floaters == null || floaters.Count == 0)
         {
             CreateFloaters();
+        }
+        if(waterRenderer != null)
+        {
+            waterMaterial = waterRenderer.sharedMaterial;
+            waterBaseY = waterRenderer.transform.position.y;
+            cachedSpeed = waterMaterial.GetFloat("_waveSpeed");
+            cachedScale = waterMaterial.GetVector("_waveSize");
         }
     }
     public void Awake()
@@ -62,21 +74,42 @@ public class Boat : MonoBehaviour
     {
         foreach(Transform floater in floaters)
         {
-            float difference = floater.position.y - ocean.coll.bounds.max.y;
-            if(difference < 0)
+            float x = floater.position.x;
+            float z = floater.position.z;
+            float waveHeight = GetWaveHeight(x, z);
+            
+            // 물 높이와 부표 높이의 차이
+            float difference = floater.position.y - waveHeight;
+
+            if(difference < 0) 
             {
-                Vector3 bouncy = (Vector3.up * floatStrength * Mathf.Abs(difference) * Physics.gravity.magnitude * volume * ocean.density);
-                // 난류
-                if (simulateWaterTurbulence)
-                {
-                    bouncy += GenerateTurbulence();
-                }
-                rb.AddForceAtPosition(bouncy, floater.position, ForceMode.Force);
-                rb.AddForceAtPosition(rb.linearVelocity * (dampeningFactor / floaters.Count) * volume, floater.position, ForceMode.Force);
+                float floatThreshold = coll.bounds.size.y * 0.6f; 
+                float displacementMultiplier = Mathf.Clamp01(Mathf.Abs(difference) / floatThreshold);
+                Vector3 buoyancyForce = Vector3.up * Physics.gravity.magnitude * (rb.mass / floaters.Count) * floatStrength;
+                
+                // 기본 부력 적용
+                rb.AddForceAtPosition(buoyancyForce * displacementMultiplier, floater.position, ForceMode.Acceleration);
+
+                // [핵심] 수직 속도 감쇠 (Vertical Damping)
+                // 부표가 위로 솟구치려고 할 때 강하게 잡아줍니다.
+                float verticalVelocity = rb.GetPointVelocity(floater.position).y;
+                rb.AddForceAtPosition(Vector3.up * -verticalVelocity * dampeningFactor, floater.position, ForceMode.Acceleration);
             }
         }
     }
+    float GetWaveHeight(float x, float z)
+    {
+        float u = x / 20f; // Plane의 x크기로 나누기
+        float v = z / 20f; // Plnae의 z크기로 나누기
+        float offset = Time.time * cachedSpeed;
+        float noiseValue = CalculateGradientNoise(u + offset, v + offset);
+        return waterBaseY + noiseValue;
+    }
 
+    float CalculateGradientNoise(float u, float v)
+    {
+        return Mathf.PerlinNoise(u * cachedScale.x, v * cachedScale.y);
+    }
     // 난류
     public Vector3 GenerateTurbulence()
     {
@@ -136,6 +169,7 @@ public class Boat : MonoBehaviour
 
         // 배가 뒤집히지 않게 하기 위해 Y값(높이)의 절반만 사용하거나 
         // 아예 바닥면에만 배치하고 싶다면 ext.y 대신 0이나 음수값을 넣을 수 있습니다.
+        // 배의 바닥면과 중간면에 형성
         return new Vector3[] {
                 new Vector3(ext.x, -ext.y, ext.z),
                 new Vector3(-ext.x, -ext.y, ext.z),
@@ -147,4 +181,14 @@ public class Boat : MonoBehaviour
                 new Vector3(-ext.x, ext.y, -ext.z)
         };
     }
+    void OnDrawGizmos()
+{
+    if (floaters == null) return;
+    Gizmos.color = Color.cyan;
+    foreach (var f in floaters)
+    {
+        float h = GetWaveHeight(f.position.x, f.position.z);
+        Gizmos.DrawSphere(new Vector3(f.position.x, h, f.position.z), 0.1f);
+    }
+}
 }

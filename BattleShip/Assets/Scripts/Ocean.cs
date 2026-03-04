@@ -4,8 +4,8 @@ using UnityEngine;
 public class Ocean : MonoBehaviour
 {
     public float density = 1;
-    public float drag = 1;
-    public float angularDrag = 1f;
+    public float drag = 2;
+    public float angularDrag = 2f;
     public Collider coll {get; private set;}
     void Start()
     {
